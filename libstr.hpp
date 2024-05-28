@@ -26,18 +26,12 @@ static inline float absf(float f) {
 	return abs(f);
 }
 
-inline int powf(int base, unsigned int exponent) {
+inline int powl(int base, unsigned int exponent) {
 	int total = 1;
 	for (unsigned int i = 0; i < exponent; i++) {
 		total *= base;
 	}
 	return total;
-}
-
-static inline bool isZero(float x) {
-	// https://stackoverflow.com/questions/19837576/comparing-floating-point-number-to-zero
-	const float epsilon = 1e-5;
-	return absf(x) <= epsilon * absf(x);
 }
 
 template<uint_fast16_t buffSize>
@@ -113,61 +107,6 @@ class Str {
 		return 0;
 	}
 
-	// Returns:
-	//  0 if success
-	// -1 if start + numChars is out of bounds
-	template<uint_fast16_t numChars>
-	int set(uint_fast16_t start, int data) {
-		char str[numChars + 1];					  // Adding one for the null termination byte
-		snprintf(str, numChars + 1, "%d", data);  // Adding one for the null termination byte
-
-#ifdef LIBSTR_SAFE
-		int len = strlen(str);
-		return set(start, len, str);
-#else
-		return set(start, numChars, str);  // Not adding one because the null termination byte should not be included
-#endif
-	}
-
-	// Returns:
-	//  0 if success
-	// -1 if writing out of bounds of the Str
-	// Params:
-	// numChars:
-	//   the amount of characters used.
-	// start:
-	//   the index in this Str to start writing the unsigned long
-	// data:
-	//   the unsigned long to be written
-	int set(uint_fast16_t start, unsigned long data) {
-		if (data == 0) {
-			buffer[start] = '0';
-			return 0;
-		}
-
-		// Calcuate the bytes needed to represent data
-		uint_fast8_t numDigits = 0;
-		unsigned long num = data;
-		do {
-			num = num / 10;
-			numDigits++;
-		} while (num != 0);
-#ifdef LIBSTR_SAFE
-		if (start + numDigits >= buffSize) {
-			return -1;
-		}
-#endif
-		// Write the long from right to left
-		for (uint_fast8_t i = 0; i < numDigits; i++) {
-			// Finding the last character by adding the last digit to the ASCII code of '0'(=48)
-			char c = '0' + (data % 10);
-			buffer[start + (numDigits - 1 - i)] = c;
-			// Shift the long to the right, so the second last digit is the last
-			data /= 10;
-		}
-		return 0;
-	}
-
 	// Writes a unsigned long into this str, and pads the left side with 0s
 	// Returns:
 	//  0 if success
@@ -233,7 +172,7 @@ class Str {
 			return -3;	// numDecimals is too large
 		}
 #endif
-		long num = (long)(data * powf(10, numDecimals));
+		long num = (long)(data * powl(10, numDecimals));
 
 		uint_fast8_t numDigits = 0;	 // Total number of digits in num
 		unsigned long tempNum = num;
@@ -241,7 +180,6 @@ class Str {
 			tempNum = tempNum / 10;
 			numDigits++;
 		} while (tempNum != 0);
-		Serial.println(numDigits);
 
 #ifdef LIBSTR_SAFE
 		if (numDigits + 1 > numChars) {
@@ -268,101 +206,5 @@ class Str {
 		// Write the amount of decimals
 		buffer[start + numChars - 1] = '0' + numDecimals;
 		return 0;
-	}
-
-	// Returns:
-	//   0 if successful
-	//  -1 if out of bounds
-	// Params:
-	// numChars:
-	//   the amount of characters used.
-	// start:
-	//   the index in this Str to start writing the float
-	// data:
-	//   the float to be written
-	// Note: if numChars is shorter than the string representation of the float, the float is cut on the right side
-	template<uint_fast8_t numChars>
-	int set(uint_fast16_t start, float data) {
-		char str[numChars + 1];
-		snprintf(str, numChars + 1, "%f", data);
-
-#ifdef LIBSTR_SAFE
-		int len = strlen(str);
-		uint_fast16_t index = len - 1;
-		while (index != 0 && str[index] == '0') {
-			index--;
-		}
-		if (str[index] == '.') {
-			index++;
-		}
-		return set(start, index + 1, str);
-#else
-		return set(start, numChars, str);
-#endif
-	}
-	// int setF(uint_fast16_t start, float data) {
-	//     // calculate the number of digits in the integer part
-	//     uint_fast8_t numIntDigits = 0;
-	// 	uint_fast32_t num = data;
-	// 	do {
-	// 		num = num / 10;
-	// 		numIntDigits++;
-	// 	} while (num != 0);
-
-	// 	// Write the integer part
-	// 	num = data;
-	// 	uint_fast16_t offset = 0;
-	// 	while (num != 0) {
-	// 		char c = '0' + (num % 10);
-	//         // Serial.println(offset);
-	// 		buffer[numIntDigits - offset] = c;
-	// 		num = num / 10;
-	//         offset++;
-	// 	}
-	//     offset = numIntDigits;
-	// 	// Write the punctuation
-	// 	buffer[offset] = '.';
-	//     offset++;
-
-	// 	// Write the fractional part
-	// 	// float f = data - (float)((int)data);
-	//     Serial.println(data);
-	// 	// do {
-	// 	// 	f *= 10;
-	// 	// 	uint_fast8_t digit = (uint_fast8_t)f;
-	// 	// 	char c = '0' + digit;
-	// 	// 	// buffer[offset] = c;
-	//     //     // Serial.println(offset);
-	//     //     offset++;
-	// 	// } while (!isZero(f));
-
-	// 	return 0;
-	// }
-
-
-	// Writes data to this Str and pads the remainding bytes with 0 so the total byte size is numChars, and the numerical value is unchanged.
-	// Note: if numChars is shorter than the string representation of the float, the float is cut on the right side
-	// Returns:
-	//  0 if success
-	// -1 if start + numChars is out of bounds
-	// Params:
-	// numChars:
-	//   the amount of characters used.
-	// start:
-	//   the index in this Str to start writing the float
-	// data:
-	//   the float to be written
-	template<uint_fast8_t numChars>
-	int padSet(uint_fast16_t start, float data) {
-		char str[numChars + 1];
-		snprintf(str, numChars + 1, "%f", data);
-
-		// Set padding
-		int flen = strlen(str);
-		for (uint_fast16_t i = flen; i < numChars; i++) {
-			str[i] = '0';
-		}
-
-		return set(start, numChars, str);
 	}
 };
