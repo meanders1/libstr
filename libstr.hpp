@@ -1,10 +1,10 @@
 /*
-For safe mode (strongly recommended), define LIBSTR_SAFE before including this file.
-Using safe mode is only marginally slower.
+For unsafe mode (strongly discouraged), define LIBSTR_UNSAFE before including this file.
+Using unsafe mode is only marginally faster, and disables checks that can stop the program from crashing.
 
-For example (at the top of a file):
+Example: To define unsafe mode write (at the top of a file):
 ... other includes ...
-#define LIBSTR_SAFE
+#define LIBSTR_UNSAFE
 #include "libstr.hpp"
 ... rest of the code ...
 
@@ -59,7 +59,7 @@ class Str {
 	//   0 if success
 	//  -1 if end > the size of this Str
 	int set(uint_fast16_t start, uint_fast16_t end, char character) {
-#ifdef LIBSTR_SAFE
+#ifndef LIBSTR_UNSAFE
 		if (end > buffSize) {
 			return -1;
 		}
@@ -70,9 +70,11 @@ class Str {
 		return 0;
 	}
 
-    // Fills the Str with the spesified character, and appends a null terminator
+	// Fills the Str with the spesified character, and appends a null terminator
 	void fill(char character) {
-		set(0, buffSize, character);
+		for (uint_fast16_t i = 0; i < buffSize; i++) {
+			buffer[i] = character;
+		}
 		buffer[buffSize] = '\0';
 	}
 
@@ -84,7 +86,7 @@ class Str {
 	// numChars: the amount of characters to copy from data
 	// data: the string to copy from
 	int set(uint_fast16_t startIndex, uint_fast16_t numChars, const char* data) {
-#ifdef LIBSTR_SAFE
+#ifndef LIBSTR_UNSAFE
 		if (startIndex + numChars > buffSize) {
 			return -1;	// String out of bounds
 		}
@@ -98,7 +100,7 @@ class Str {
 	//   0 if successful
 	//  -1 if out of bounds
 	int set(uint_fast16_t index, char data) {
-#ifdef LIBSTR_SAFE
+#ifndef LIBSTR_UNSAFE
 		if (index > buffSize) {
 			return -1;	// Index out of bounds
 		}
@@ -128,7 +130,7 @@ class Str {
 			numDigits++;
 		} while (num != 0);
 
-#ifdef LIBSTR_SAFE
+#ifndef LIBSTR_UNSAFE
 		if (numDigits > numChars) {
 			return -2;	// Number of digits is too large
 		}
@@ -152,10 +154,11 @@ class Str {
 	}
 
 	// Writes a longfloat with padding. A longfloat is a format for storing floats which is faster to write than a regular float
-	// For example: 12.3 -> 1231 with one at the end (called the decimal character) to indicate how many digits are left of the decimal point
+	// For example: 12.3 -> +1231 the 1 one at the end (called the decimal character) indicates how many digits are left of the decimal point
+    // Another example: -12.3 -> -1231 
 	// The padding is a series of zeros on the left of the float, whose purpose is to fill the amount of characters indicated by numChars
 	// Example:
-	// padSetLF(0, 8, 2, 123.456) -> 00123452 (the 2 at the end is the decimals character)
+	// padSetLF(0, 8, 2, 123.456) -> 0+123452 (the 2 at the end is the decimals character)
 	// params:
 	//  - start, where to start writing the longfloat
 	//  - numChars, the total number of characters to write
@@ -164,15 +167,15 @@ class Str {
 	// returns: the success code
 	//   0, if success
 	//  -1, if start + numChars > the size of the Str
-	//  -2, if the amount of digits in the longfloat + 1 (+1 for the decimal character) > numChars
-	//  -3, if numDecimals + 1 (+1 for the decimals character) > numChars
+	//  -2, if the amount of digits in the longfloat + 2 (adding 1 for decimal character and 1 for prefix(+/-)) > numChars
+	//  -3, if numDecimals + 2 (adding 1 for decimal character and 1 for prefix(+/-)) > numChars
 	int padSetLF(uint_fast16_t start, uint_fast8_t numChars, uint_fast8_t numDecimals, float data) {
-#ifdef LIBSTR_SAFE
-		if (numDecimals + 1 > numChars) {
+#ifndef LIBSTR_UNSAFE
+		if (numDecimals + 2 > numChars) { // adding 1 for decimal character and 1 for prefix(+/-)
 			return -3;	// numDecimals is too large
 		}
 #endif
-		long num = (long)(data * powl(10, numDecimals));
+		unsigned long num = (long)(absf(data) * powl(10, numDecimals));
 
 		uint_fast8_t numDigits = 0;	 // Total number of digits in num
 		unsigned long tempNum = num;
@@ -181,24 +184,31 @@ class Str {
 			numDigits++;
 		} while (tempNum != 0);
 
-#ifdef LIBSTR_SAFE
-		if (numDigits + 1 > numChars) {
+#ifndef LIBSTR_UNSAFE
+		if (numDigits + 2 > numChars) { // adding 1 for decimal character and 1 for prefix(+/-)
 			return -2;
 		}
-		if (start + numChars >= buffSize) {
+		if (start + numChars > buffSize) {
 			return -1;
 		}
 #endif
 		// Write the padding
-		for (uint_fast8_t i = 0; i < numChars - numDigits - 1; i++) {
+		for (uint_fast8_t i = 0; i < numChars - numDigits - 2; i++) { // subtracting 1 for decimal character and 1 for prefix(+/-)
 			buffer[start + i] = '0';
 		}
 
 		// Write the longfloat
-		for (uint_fast8_t i = 0; i < numDigits; i++) {
+        uint_fast16_t index = start + numChars - numDigits - 2;
+        if (data < 0) {
+            buffer[index] = '-';
+        } else {
+            buffer[index] = '+';
+        }
+
+		for (int_fast16_t i = 0; i < numDigits; i++) {
 			// Finding the last character by adding the last digit to the ASCII code of '0'(=48)
 			char c = '0' + (num % 10);
-			buffer[start + (numDigits - 1 - i) + (numChars - numDigits) - 1] = c;
+			buffer[start + (numChars-i-2)] = c;
 			// Shift the long to the right, so the second last digit is the last
 			num /= 10;
 		}

@@ -1,9 +1,7 @@
-#define LIBSTR_SAFE
 #include "libstr.hpp"
 
-
 int testStr() {
-	constexpr int antTester = 30;
+	constexpr int antTester = 10;
 	float aX = 0.23;
 	float aY = -1.12;
 	float aZ = 0.03;
@@ -11,49 +9,45 @@ int testStr() {
 	float gX = 0.1;
 	float gY = 0.11;
 	float gZ = 2.3;
-	uint16_t times[antTester];
+	long total = 0;
 
+    Str<6+1 + 8+1+8+1+8+1 + 8+1 + 8+1+8+1+8> string(',');
 	for (int i = 0; i < antTester; i++) {
 		unsigned long start = millis();
 		for (int j = 0; j < 500; j++) {
-			Str<6 + 1 + 8 + 1 + 8 + 1 + 8 + 1 + 8 + 1 + 8 + 1 + 8 + 1 + 8> string;
 
-			string.padSet<6>(0, start);
+			string.padSet(0, 6, start);
 			string.set(6, ';');
 
-			string.padSet<8>(7, aX);
+			string.padSetLF(7, 8, 2, aX);
 			string.set(15, ';');
-			string.padSet<8>(16, aY);
+			string.padSetLF(16, 8, 2, aY);
 			string.set(24, ';');
-			string.padSet<8>(25, aZ);
+			string.padSetLF(25, 8, 2, aZ);
 			string.set(33, ';');
 
-			string.padSet<8>(34, pressure);
+			string.padSetLF(34, 8, 2, pressure);
 			string.set(42, ';');
 
-			string.padSet<8>(43, gX);
+			string.padSetLF(43, 8, 2, gX);
 			string.set(51, ';');
-			string.padSet<8>(52, gY);
+			string.padSetLF(52, 8, 2, gY);
 			string.set(60, ';');
-			string.padSet<8>(61, gZ);
+			string.padSetLF(61, 8, 2, gZ);
 		}
 
 		unsigned long end = millis();
-		times[i] = end - start;
+		total += end - start;
 	}
-	// Serial.println(string.buffer);
-	int average = 0;
-	for (int i = 0; i < antTester; i++) {
-		average += times[i];
-	}
-	average /= antTester;
-	return average;
+	Serial.println(string.buffer);
+	total /= antTester;
+	return (int) total;
 }
 
 int testArduinoString() {
 	// String string;
 	// string.reserve(43); // Does not help much, as the string is not concatenated to, only assigned to.
-	constexpr int antTester = 30;
+	constexpr int antTester = 10;
 	float aX = 0.23;
 	float aY = -1.12;
 	float aZ = 0.03;
@@ -61,23 +55,19 @@ int testArduinoString() {
 	float gX = 0.1;
 	float gY = 0.11;
 	float gZ = 2.3;
-	uint16_t times[antTester];
-
+	long total = 0;
+    String string;
 	for (int i = 0; i < antTester; i++) {
 		unsigned long start = millis();
 		for (int j = 0; j < 500; j++) {
-			String string = String(start) + ";" + String(aX) + ";" + String(aY) + ";" + String(aZ) + ";" + String(pressure) + ";" + String(gX) + ";" + String(gY) + ";" + String(gZ);
+			string = String(start) + ";" + String(aX) + ";" + String(aY) + ";" + String(aZ) + ";" + String(pressure) + ";" + String(gX) + ";" + String(gY) + ";" + String(gZ);
 		}
 		unsigned long end = millis();
-		times[i] = end - start;
+		total += end - start;
 	}
-	// Serial.println(string);
-	int average = 0;
-	for (int i = 0; i < antTester; i++) {
-		average += times[i];
-	}
-	average /= antTester;
-	return average;
+	Serial.println(string);
+	total /= antTester;
+	return (int) total;
 }
 
 int testUL() {
@@ -141,7 +131,7 @@ float testPadF() {
 	for (int i = 0; i < numTests; i++) {
 		unsigned long start = millis();
 		for (int i = 0; i < 1; i++) {
-			returnCode = string.padSet<8>(2, val);
+			returnCode = string.padSet(2, 8, val);
 		}
 		unsigned long end = millis();
 		total += end - start;
@@ -157,19 +147,16 @@ void setup() {
 }
 
 void loop() {
-	// Serial.println("N: ");
-	Serial.println(testF());
-	// Serial.println("PAD: ");
-	// Serial.println(testPadF());
-	Serial.println();
-	// int strPerf = testStr();
-	// int aPerf = testArduinoString();
-	// Serial.print("Str average time: ");
-	// Serial.print(strPerf);
-	// Serial.println("ms");
-	// Serial.print("Arduino string average time: ");
-	// Serial.print(aPerf);
-	// Serial.println("ms");
+	int strPerf = testStr();
+	int aPerf = testArduinoString();
+	Serial.print("Str average time: ");
+	Serial.print(strPerf);
+	Serial.println("ms");
+
+	Serial.print("Arduino string average time: ");
+	Serial.print(aPerf);
+	Serial.println("ms");
+    Serial.println();
 
 	// Serial.println("Hello");
 
