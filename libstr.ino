@@ -11,7 +11,7 @@ int testStr() {
 	float gZ = 2.3;
 	long total = 0;
 
-    Str<6+1 + 8+1+8+1+8+1 + 8+1 + 8+1+8+1+8> string(',');
+	Str<6+1 + 8+1+8+1+8+1 + 8+1 + 8+1+8+1+8> string(',');
 	for (int i = 0; i < antTester; i++) {
 		unsigned long start = millis();
 		for (int j = 0; j < 500; j++) {
@@ -41,7 +41,7 @@ int testStr() {
 	}
 	Serial.println(string.buffer);
 	total /= antTester;
-	return (int) total;
+	return (int)total;
 }
 
 int testArduinoString() {
@@ -56,7 +56,7 @@ int testArduinoString() {
 	float gY = 0.11;
 	float gZ = 2.3;
 	long total = 0;
-    String string;
+	String string;
 	for (int i = 0; i < antTester; i++) {
 		unsigned long start = millis();
 		for (int j = 0; j < 500; j++) {
@@ -67,79 +67,7 @@ int testArduinoString() {
 	}
 	Serial.println(string);
 	total /= antTester;
-	return (int) total;
-}
-
-int testUL() {
-	Str<20> string('-');
-	unsigned long val = 1020304;
-	int total = 0;
-	for (int i = 0; i < 100; i++) {
-		unsigned long start = millis();
-		for (int i = 0; i < 1000; i++) {
-			string.set(2, val);
-		}
-		unsigned long end = millis();
-		total += end - start;
-	}
-	Serial.println(string.buffer);
-	return total / 100;
-}
-
-int testPadUL() {
-	Str<20> string('-');
-	unsigned long val = 1020304;
-	int total = 0;
-	for (int i = 0; i < 10; i++) {
-		unsigned long start = millis();
-		for (int i = 0; i < 1000; i++) {
-			string.padSet(2, 9, val);
-		}
-		unsigned long end = millis();
-		total += end - start;
-	}
-	Serial.println(string.buffer);
-	return total / 100;
-}
-
-float testF() {
-	Str<14> string('-');
-	constexpr int numTests = 1;
-	float val = 10.34519;
-	int total = 0;
-    int returnCode = 0;
-	for (int i = 0; i < numTests; i++) {
-		unsigned long start = millis();
-		for (int i = 0; i < 1; i++) {
-			returnCode = string.padSetLF(2, 12, 5, val);
-		}
-		unsigned long end = millis();
-		total += end - start;
-	}
-    Serial.print("Return code: ");
-    Serial.println(returnCode);
-	Serial.println(string.buffer);
-	return (float)total / numTests;
-}
-
-float testPadF() {
-	Str<14> string('-');
-	constexpr int numTests = 1;
-	float val = 12.34519;
-	int total = 0;
-    int returnCode = 0;
-	for (int i = 0; i < numTests; i++) {
-		unsigned long start = millis();
-		for (int i = 0; i < 1; i++) {
-			returnCode = string.padSet(2, 8, val);
-		}
-		unsigned long end = millis();
-		total += end - start;
-	}
-    Serial.print("Return code: ");
-    Serial.println(returnCode);
-	Serial.println(string.buffer);
-	return (float)total / numTests;
+	return (int)total;
 }
 
 void setup() {
@@ -147,16 +75,20 @@ void setup() {
 }
 
 void loop() {
-	int strPerf = testStr();
-	int aPerf = testArduinoString();
-	Serial.print("Str average time: ");
-	Serial.print(strPerf);
-	Serial.println("ms");
+	Str<8> str(',');
+	unsigned long val = 12;
+	Serial.println(str.padSet(4, 4, val));
+	Serial.println(str.buffer);
+	// int strPerf = testStr();
+	// int aPerf = testArduinoString();
+	// Serial.print("Str average time: ");
+	// Serial.print(strPerf);
+	// Serial.println("ms");
 
-	Serial.print("Arduino string average time: ");
-	Serial.print(aPerf);
-	Serial.println("ms");
-    Serial.println();
+	// Serial.print("Arduino string average time: ");
+	// Serial.print(aPerf);
+	// Serial.println("ms");
+	// Serial.println();
 
 	// Serial.println("Hello");
 

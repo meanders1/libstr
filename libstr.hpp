@@ -26,7 +26,16 @@ static inline float absf(float f) {
 	return abs(f);
 }
 
-inline int powl(int base, unsigned int exponent) {
+static inline long absl(long l) {
+	// Works for two's complement integers
+	// https://stackoverflow.com/a/2074403
+	long temp = l >> (sizeof(l) * 8 - 1);  // make a mask of the sign bit
+	l ^= temp;							   // toggle the bits if value is negative
+	l += temp & 1;						   // add one if value was negative
+	return l;
+}
+
+static inline int powl(int base, unsigned int exponent) {
 	int total = 1;
 	for (unsigned int i = 0; i < exponent; i++) {
 		total *= base;
@@ -110,9 +119,12 @@ class Str {
 	}
 
 	// Writes a unsigned long into this str, and pads the left side with 0s
+	// Examples:
+	//     padSet(0, 4, 123) -> "0123"
+	//     padSet(0, 3, 123) -> "123"
 	// Returns:
 	//  0 if success
-	// -1 if start + numChars is out of bounds
+	// -1 if the number does not fit, i.e. start + numChars is out of bounds
 	// -2 data has more digits than numChars
 	// Params:
 	// numChars:
@@ -134,10 +146,14 @@ class Str {
 		if (numDigits > numChars) {
 			return -2;	// Number of digits is too large
 		}
-		if (start + numChars >= buffSize) {
+		if (start + numChars > buffSize) {
 			return -1;	// Out of bounds
 		}
 #endif
+		// Write the padding
+		for (uint_fast8_t i = 0; i < numChars - numDigits; i++) {
+			buffer[start + i] = '0';
+		}
 		// Write the long from right to left
 		for (uint_fast8_t i = 0; i < numDigits; i++) {
 			// Finding the last character by adding the last digit to the ASCII code of '0'(=48)
@@ -146,16 +162,67 @@ class Str {
 			// Shift the long to the right, so the second last digit is the last
 			data /= 10;
 		}
+
+		return 0;
+	}
+
+	// Writes a long into this str, and pads the left side with 0s
+	// Examples:
+	//     padSet(0, 6, 234) -> "00+234"
+	//     padSet(0, 4, -234) -> "-234"
+	// Returns:
+	//  0 if success
+	// -1 if the number does not fit, i.e. start + numChars is out of bounds
+	// -2 if data has more digits than numChars
+	// Params:
+	// numChars:
+	//   the amount of characters used.
+	// start:
+	//   the index in this Str to start writing the unsigned long
+	// data:
+	//   the unsigned long to be written
+	int padSet(uint_fast16_t start, uint_fast16_t numChars, long data) {
+		// Calculate number of digits
+		uint_fast8_t numDigits = 0;
+		unsigned long absData = absl(data);
+		unsigned long tempNum = absData;
+		do {
+			tempNum = tempNum / 10;
+			numDigits++;
+		} while (tempNum != 0);
+
+#ifndef LIBSTR_UNSAFE
+		if (numDigits + 1 > numChars) {	 // Adding 1 for the +/-
+			return -2;					 // Number of digits is too large
+		}
+		if (start + numChars > buffSize) {
+			return -1;	// Out of bounds
+		}
+#endif
 		// Write the padding
 		for (uint_fast8_t i = 0; i < numChars - numDigits; i++) {
 			buffer[start + i] = '0';
 		}
+		if (data > 0) {
+			buffer[start + numChars - (numDigits + 1)] = '+';
+		} else {
+			buffer[start + numChars - (numDigits + 1)] = '-';
+		}
+		// Write the long from right to left
+		for (uint_fast8_t i = 0; i < numDigits; i++) {
+			// Finding the last character by adding the last digit to the ASCII code of '0'(=48)
+			char c = '0' + (absData % 10);
+			buffer[start + (numChars - 1 - i)] = c;
+			// Shift the long to the right, so the second last digit is the last
+			absData /= 10;
+		}
 		return 0;
 	}
 
-	// Writes a longfloat with padding. A longfloat is a format for storing floats which is faster to write than a regular float
-	// For example: 12.3 -> +1231 the 1 one at the end (called the decimal character) indicates how many digits are left of the decimal point
-    // Another example: -12.3 -> -1231 
+	// Writes a longfloat with padding. A longfloat is a format for storing floats.
+	// Examples:
+	//     12.3 -> +1231 the 1 one at the end (called the decimal character) indicates how many digits are left of the decimal point
+	//     -12.3 -> -1231
 	// The padding is a series of zeros on the left of the float, whose purpose is to fill the amount of characters indicated by numChars
 	// Example:
 	// padSetLF(0, 8, 2, 123.456) -> 0+123452 (the 2 at the end is the decimals character)
@@ -171,8 +238,8 @@ class Str {
 	//  -3, if numDecimals + 2 (adding 1 for decimal character and 1 for prefix(+/-)) > numChars
 	int padSetLF(uint_fast16_t start, uint_fast8_t numChars, uint_fast8_t numDecimals, float data) {
 #ifndef LIBSTR_UNSAFE
-		if (numDecimals + 2 > numChars) { // adding 1 for decimal character and 1 for prefix(+/-)
-			return -3;	// numDecimals is too large
+		if (numDecimals + 2 > numChars) {  // adding 1 for decimal character and 1 for prefix(+/-)
+			return -3;					   // numDecimals is too large
 		}
 #endif
 		unsigned long num = (long)(absf(data) * powl(10, numDecimals));
@@ -185,7 +252,7 @@ class Str {
 		} while (tempNum != 0);
 
 #ifndef LIBSTR_UNSAFE
-		if (numDigits + 2 > numChars) { // adding 1 for decimal character and 1 for prefix(+/-)
+		if (numDigits + 2 > numChars) {	 // adding 1 for decimal character and 1 for prefix(+/-)
 			return -2;
 		}
 		if (start + numChars > buffSize) {
@@ -193,22 +260,22 @@ class Str {
 		}
 #endif
 		// Write the padding
-		for (uint_fast8_t i = 0; i < numChars - numDigits - 2; i++) { // subtracting 1 for decimal character and 1 for prefix(+/-)
+		for (uint_fast8_t i = 0; i < numChars - numDigits - 2; i++) {  // subtracting 1 for decimal character and 1 for prefix(+/-)
 			buffer[start + i] = '0';
 		}
 
 		// Write the longfloat
-        uint_fast16_t index = start + numChars - numDigits - 2;
-        if (data < 0) {
-            buffer[index] = '-';
-        } else {
-            buffer[index] = '+';
-        }
+		uint_fast16_t index = start + numChars - numDigits - 2;
+		if (data < 0) {
+			buffer[index] = '-';
+		} else {
+			buffer[index] = '+';
+		}
 
-		for (int_fast16_t i = 0; i < numDigits; i++) {
+		for (uint_fast16_t i = 0; i < numDigits; i++) {
 			// Finding the last character by adding the last digit to the ASCII code of '0'(=48)
 			char c = '0' + (num % 10);
-			buffer[start + (numChars-i-2)] = c;
+			buffer[start + (numChars - i - 2)] = c;
 			// Shift the long to the right, so the second last digit is the last
 			num /= 10;
 		}
