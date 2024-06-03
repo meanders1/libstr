@@ -23,7 +23,7 @@ static inline float absf(float f) {
 		u.i &= 0x7fffffff;
 		return u.f;
 	}
-	return abs(f);
+	return (f >= 0) ? f : -f;
 }
 
 static inline long absl(long l) {
