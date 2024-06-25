@@ -1,6 +1,6 @@
-/*
+﻿/*
 For unsafe mode (strongly discouraged), define LIBSTR_UNSAFE before including this file.
-Using unsafe mode is only marginally faster, and disables checks that can stop the program from crashing.
+Using unsafe mode is only occasionally faster, and disables checks that can stop the program from crashing.
 
 Example: To define unsafe mode write (at the top of a file):
 ... other includes ...
@@ -10,14 +10,20 @@ Example: To define unsafe mode write (at the top of a file):
 
 */
 
+#include <stdint.h>
 #include <cmath>
+
+typedef uint_fast16_t fu16;
+typedef uint_fast8_t fu8;
+typedef uint32_t u32;
+
 
 static inline float absf(float f) {
 	/* optimizer will optimize away the `if` statement and the library call */
-	if (sizeof(float) == sizeof(uint32_t)) {
+	if (sizeof(float) == sizeof(u32)) {
 		union {
 			float f;
-			uint32_t i;
+			u32 i;
 		} u;
 		u.f = f;
 		u.i &= 0x7fffffff;
@@ -43,11 +49,14 @@ static inline int powl(int base, unsigned int exponent) {
 	return total;
 }
 
-template<uint_fast16_t buffSize>
+template<fu16 buffSize>
 class Str {
-  public:
+public:
 	char buffer[buffSize + 1];
-  public:
+	inline fu16 length() {
+		return buffSize;
+	}
+public:
 	// Construct string. The characters in the string can be anything.
 	Str() {
 		buffer[buffSize] = '\0';
@@ -67,13 +76,13 @@ class Str {
 	// returns:
 	//   0 if success
 	//  -1 if end > the size of this Str
-	int set(uint_fast16_t start, uint_fast16_t end, char character) {
+	int set(fu16 start, fu16 end, char character) {
 #ifndef LIBSTR_UNSAFE
 		if (end > buffSize) {
 			return -1;
 		}
 #endif
-		for (uint_fast16_t i = start; i < end; i++) {
+		for (fu16 i = start; i < end; i++) {
 			buffer[i] = character;
 		}
 		return 0;
@@ -81,7 +90,7 @@ class Str {
 
 	// Fills the Str with the spesified character, and appends a null terminator
 	void fill(char character) {
-		for (uint_fast16_t i = 0; i < buffSize; i++) {
+		for (fu16 i = 0; i < buffSize; i++) {
 			buffer[i] = character;
 		}
 		buffer[buffSize] = '\0';
@@ -94,7 +103,7 @@ class Str {
 	// startIndex: the index of this Str to start writing.
 	// numChars: the amount of characters to copy from data
 	// data: the string to copy from
-	int set(uint_fast16_t startIndex, uint_fast16_t numChars, const char* data) {
+	int set(fu16 startIndex, fu16 numChars, const char* data) {
 #ifndef LIBSTR_UNSAFE
 		if (startIndex + numChars > buffSize) {
 			return -1;	// String out of bounds
@@ -108,7 +117,7 @@ class Str {
 	// Returns:
 	//   0 if successful
 	//  -1 if out of bounds
-	int set(uint_fast16_t index, char data) {
+	int set(fu16 index, char data) {
 #ifndef LIBSTR_UNSAFE
 		if (index > buffSize) {
 			return -1;	// Index out of bounds
@@ -133,9 +142,9 @@ class Str {
 	//   the index in this Str to start writing the unsigned long
 	// data:
 	//   the unsigned long to be written
-	int padSet(uint_fast16_t start, uint_fast16_t numChars, unsigned long data) {
+	int padSet(fu16 start, fu16 numChars, unsigned long data) {
 		// Calculate number of digits
-		uint_fast8_t numDigits = 0;
+		fu8 numDigits = 0;
 		unsigned long num = data;
 		do {
 			num = num / 10;
@@ -151,11 +160,11 @@ class Str {
 		}
 #endif
 		// Write the padding
-		for (uint_fast8_t i = 0; i < numChars - numDigits; i++) {
+		for (fu8 i = 0; i < numChars - numDigits; i++) {
 			buffer[start + i] = '0';
 		}
 		// Write the long from right to left
-		for (uint_fast8_t i = 0; i < numDigits; i++) {
+		for (fu8 i = 0; i < numDigits; i++) {
 			// Finding the last character by adding the last digit to the ASCII code of '0'(=48)
 			char c = '0' + (data % 10);
 			buffer[start + (numChars - 1 - i)] = c;
@@ -181,9 +190,9 @@ class Str {
 	//   the index in this Str to start writing the unsigned long
 	// data:
 	//   the unsigned long to be written
-	int padSet(uint_fast16_t start, uint_fast16_t numChars, long data) {
+	int padSet(fu16 start, fu16 numChars, long data) {
 		// Calculate number of digits
-		uint_fast8_t numDigits = 0;
+		fu8 numDigits = 0;
 		unsigned long absData = absl(data);
 		unsigned long tempNum = absData;
 		do {
@@ -200,16 +209,17 @@ class Str {
 		}
 #endif
 		// Write the padding
-		for (uint_fast8_t i = 0; i < numChars - numDigits; i++) {
+		for (fu8 i = 0; i < numChars - numDigits; i++) {
 			buffer[start + i] = '0';
 		}
 		if (data > 0) {
 			buffer[start + numChars - (numDigits + 1)] = '+';
-		} else {
+		}
+		else {
 			buffer[start + numChars - (numDigits + 1)] = '-';
 		}
 		// Write the long from right to left
-		for (uint_fast8_t i = 0; i < numDigits; i++) {
+		for (fu8 i = 0; i < numDigits; i++) {
 			// Finding the last character by adding the last digit to the ASCII code of '0'(=48)
 			char c = '0' + (absData % 10);
 			buffer[start + (numChars - 1 - i)] = c;
@@ -236,7 +246,7 @@ class Str {
 	//  -1, if start + numChars > the size of the Str
 	//  -2, if the amount of digits in the longfloat + 2 (adding 1 for decimal character and 1 for prefix(+/-)) > numChars
 	//  -3, if numDecimals + 2 (adding 1 for decimal character and 1 for prefix(+/-)) > numChars
-	int padSetLF(uint_fast16_t start, uint_fast8_t numChars, uint_fast8_t numDecimals, float data) {
+	int padSetLF(fu16 start, fu8 numChars, fu8 numDecimals, float data) {
 #ifndef LIBSTR_UNSAFE
 		if (numDecimals + 2 > numChars) {  // adding 1 for decimal character and 1 for prefix(+/-)
 			return -3;					   // numDecimals is too large
@@ -244,7 +254,7 @@ class Str {
 #endif
 		unsigned long num = (long)(absf(data) * powl(10, numDecimals));
 
-		uint_fast8_t numDigits = 0;	 // Total number of digits in num
+		fu8 numDigits = 0;	 // Total number of digits in num
 		unsigned long tempNum = num;
 		do {
 			tempNum = tempNum / 10;
@@ -260,19 +270,20 @@ class Str {
 		}
 #endif
 		// Write the padding
-		for (uint_fast8_t i = 0; i < numChars - numDigits - 2; i++) {  // subtracting 1 for decimal character and 1 for prefix(+/-)
+		for (fu8 i = 0; i < numChars - numDigits - 2; i++) {  // subtracting 1 for decimal character and 1 for prefix(+/-)
 			buffer[start + i] = '0';
 		}
 
 		// Write the longfloat
-		uint_fast16_t index = start + numChars - numDigits - 2;
+		fu16 index = start + numChars - numDigits - 2;
 		if (data < 0) {
 			buffer[index] = '-';
-		} else {
+		}
+		else {
 			buffer[index] = '+';
 		}
 
-		for (uint_fast16_t i = 0; i < numDigits; i++) {
+		for (fu16 i = 0; i < numDigits; i++) {
 			// Finding the last character by adding the last digit to the ASCII code of '0'(=48)
 			char c = '0' + (num % 10);
 			buffer[start + (numChars - i - 2)] = c;
