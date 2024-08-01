@@ -13,286 +13,365 @@ Example: To define unsafe mode write (at the top of a file):
 #include <stdint.h>
 #include <cmath>
 
-typedef uint_fast16_t fu16;
-typedef uint_fast8_t fu8;
-typedef uint32_t u32;
+namespace libstr {
+
+	typedef uint_fast16_t fu16;
+	typedef uint_fast8_t fu8;
+	typedef uint32_t u32;
 
 
-static inline float absf(float f) {
-	/* optimizer will optimize away the `if` statement and the library call */
-	if (sizeof(float) == sizeof(u32)) {
-		union {
-			float f;
-			u32 i;
-		} u;
-		u.f = f;
-		u.i &= 0x7fffffff;
-		return u.f;
+	static inline float absf(float f) {
+		// optimizer will optimize away the `if` statement
+		if (sizeof(float) == sizeof(u32)) {
+			union {
+				float f;
+				u32 i;
+			} u{};
+			u.f = f;
+			u.i &= 0x7fffffff;
+			return u.f;
+		}
+		return (f >= 0) ? f : -f;
 	}
-	return (f >= 0) ? f : -f;
+
+	static inline long absl(long l) {
+		// Works for two's complement integers
+		// https://stackoverflow.com/a/2074403
+		long temp = l >> (sizeof(l) * 8 - 1);  // make a mask of the sign bit
+		l ^= temp;							   // toggle the bits if value is negative
+		l += temp & 1;						   // add one if value was negative
+		return l;
+	}
+
+	static inline int powl(int base, unsigned int exponent) {
+		int total = 1;
+		for (unsigned int i = 0; i < exponent; i++) {
+			total *= base;
+		}
+		return total;
+	}
+
+	template<fu16 bufferSize>
+	class Str {
+	public:
+		char buffer[bufferSize];
+		inline fu16 length() {
+			return bufferSize;
+		}
+
+		Str<bufferSize + 1> nullTerminated() {
+			Str<bufferSize + 1> other;
+			other.set(0, *this);
+			other.set(bufferSize + 1 - 1, '\0');
+			return other;
+		}
+	public:
+		// Construct empty string. The string's buffer is uninitialized, used Str(char) instead to initialize the string
+		Str() {}
+
+		// Copy contructor
+		Str(const Str<bufferSize>& other) {
+			memcpy(buffer, other.buffer, static_cast<size_t>(bufferSize));
+		}
+
+		// Creates a string filled with fillCharacter
+		Str(char fillCharacter) {
+			fill(fillCharacter);
+		}
+
+		// Repeats the character in the span [start, end>
+		// returns:
+		//   0 if success
+		//  -1 if end > the size of this Str
+		//  -2 if end <= start
+		int set(fu16 start, fu16 end, char character) {
+#ifndef LIBSTR_UNSAFE
+			if (end >= bufferSize) {
+				return -1;
+			}
+			if (end <= start) {
+				return -2;
+			}
+#endif // !LIBSTR_UNSAFE
+			for (fu16 i = start; i < end; i++) {
+				buffer[i] = character;
+			}
+			return 0;
+		}
+
+		// Fills the Str with the spesified character, and appends a null terminator
+		void fill(char character) {
+			for (fu16 i = 0; i < bufferSize; i++) {
+				buffer[i] = character;
+			}
+		}
+
+		// Copies characters from the data string to this Str. The string should be null terminated if bounds checking is to be performed
+		// Returns:
+		//   0 if successful
+		//  -1 if out of bounds
+		// startIndex: the index of this Str to start writing.
+		// numChars: the amount of characters to copy from data
+		// data: the string to copy from
+		int set(fu16 startIndex, fu16 numChars, const char* data) {
+#ifndef LIBSTR_UNSAFE
+			if (startIndex + numChars > bufferSize) {
+				return -1;	// String out of bounds
+			}
+			size_t countedLength = strlen(data);
+			if (countedLength < numChars) {
+				numChars = countedLength;
+			}
+#endif // !LIBSTR_UNSAFE
+			memcpy(buffer + startIndex, data, numChars);
+			return 0;
+		}
+
+		// Copies all the characters from otherStr to this Str. 
+		// startIndex is the index at which to start copying to in this Str.
+		// returns:
+		//   0 if success
+		//  -1 if the writing is out of bounds
+		template<fu16 otherSize>
+		int set(fu16 startIndex, const Str<otherSize> otherStr) {
+#ifndef LIBSTR_UNSAFE
+			if (startIndex + otherSize > bufferSize) {
+				return - 1;
+			}
+#endif // !LIBSTR_UNSAFE
+			for (fu16 i = 0; i < otherSize; i++) {
+				buffer[startIndex + i] = otherStr.buffer[i];
+			}
+			return 0;
+		}
+
+		// Sets one character at the specified index
+		// Returns:
+		//   0 if successful
+		//  -1 if out of bounds
+		int set(fu16 index, char data) {
+#ifndef LIBSTR_UNSAFE
+			if (index >= bufferSize) {
+				return -1;	// Index out of bounds
+			}
+#endif // !LIBSTR_UNSAFE // !LIBSTR_UNSAFE
+			buffer[index] = data;
+			return 0;
+		}
+
+		// Writes a unsigned long into this str, and pads the left side with 0s
+		// Examples:
+		//     padSet(0, 4, 123) -> "0123"
+		//     padSet(0, 3, 123) -> "123"
+		// Returns:
+		//  0 if success
+		// -1 if the number does not fit, i.e. start + numChars is out of bounds
+		// -2 data has more digits than numChars
+		// Params:
+		// numChars:
+		//   the amount of characters used.
+		// start:
+		//   the index in this Str to start writing the unsigned long
+		// data:
+		//   the unsigned long to be written
+		int padSet(fu16 start, fu16 numChars, unsigned long data) {
+			// Calculate number of digits
+			fu8 numDigits = 0;
+			unsigned long num = data;
+			do {
+				num = num / 10;
+				numDigits++;
+			} while (num != 0);
+
+#ifndef LIBSTR_UNSAFE
+			if (numDigits > numChars) {
+				return -2;	// Number of digits is too large
+			}
+			if (start + numChars > bufferSize) {
+				return -1;	// Out of bounds
+			}
+#endif // !LIBSTR_UNSAFE
+			// Write the padding
+			for (fu8 i = 0; i < numChars - numDigits; i++) {
+				buffer[start + i] = '0';
+			}
+			// Write the long from right to left
+			for (fu8 i = 0; i < numDigits; i++) {
+				// Finding the last character by adding the last digit to the ASCII code of '0'(=48)
+				char c = '0' + (data % 10);
+				buffer[start + (numChars - 1 - i)] = c;
+				// Shift the long to the right, so the second last digit is the last
+				data /= 10;
+			}
+
+			return 0;
+		}
+
+		// Writes a long into this str, and pads the left side with 0s
+		// Examples:
+		//     padSet(0, 6, 234) -> "00+234"
+		//     padSet(0, 4, -234) -> "-234"
+		// Returns:
+		//  0 if success
+		// -1 if the number does not fit, i.e. start + numChars is out of bounds
+		// -2 if data has more digits than numChars
+		// Params:
+		// numChars:
+		//   the amount of characters used.
+		// start:
+		//   the index in this Str to start writing the unsigned long
+		// data:
+		//   the unsigned long to be written
+		int padSet(fu16 start, fu16 numChars, long data) {
+			// Calculate number of digits
+			fu8 numDigits = 0;
+			unsigned long absData = absl(data);
+			unsigned long tempNum = absData;
+			do {
+				tempNum = tempNum / 10;
+				numDigits++;
+			} while (tempNum != 0);
+
+#ifndef LIBSTR_UNSAFE
+			if (numDigits + 1 > numChars) {	 // Adding 1 for the +/-
+				return -2;					 // Number of digits is too large
+			}
+			if (start + numChars > bufferSize) {
+				return -1;	// Out of bounds
+			}
+#endif // !LIBSTR_UNSAFE
+			// Write the padding
+			for (fu8 i = 0; i < numChars - numDigits; i++) {
+				buffer[start + i] = '0';
+			}
+			if (data > 0) {
+				buffer[start + numChars - (numDigits + 1)] = '+';
+			}
+			else {
+				buffer[start + numChars - (numDigits + 1)] = '-';
+			}
+			// Write the long from right to left
+			for (fu8 i = 0; i < numDigits; i++) {
+				// Finding the last character by adding the last digit to the ASCII code of '0'(=48)
+				char c = '0' + (absData % 10);
+				buffer[start + (numChars - 1 - i)] = c;
+				// Shift the long to the right, so the second last digit is the last
+				absData /= 10;
+			}
+			return 0;
+		}
+
+		// Writes a float with padding. 
+		// For example:
+		// padSet(0, 7, 1, -12.46) -> "00-12.4"
+		// padSet(0, 7, 2, 12.46 -> "0+12.46"
+		// Params:
+		//  - startIndex : the index to start writing at
+		//  - numChars : the total number of characters to be written this includes the decimal point and +/-
+		//  - numDecimals : the amount of decimals to write.
+		//  - data : the float to write
+		int padSet(fu16 startIndex, fu16 numChars, fu16 numDecimals, float data) {
+#ifndef LIBSTR_UNSAFE
+			if (startIndex + numChars > bufferSize) {
+				return -1;
+			}
+#endif // !LIBSTR_UNSAFE
+			// Count digits in the integer part
+			long integer = (long)absf(data);
+			unsigned int numDigits = 0;
+			do {
+				integer = integer / 10;
+				numDigits++;
+			} while (integer != 0);
+
+#ifndef LIBSTR_UNSAFE
+			if (numDigits + numDecimals + 2 > numChars) { // +2 = - or + and .
+				return -2;
+			}
+#endif // !LIBSTR_UNSAFE
+
+			fu16 paddingLength = numChars - (2 + numDecimals + numDigits);
+
+			for (fu16 i = 0; i < paddingLength; i++) {
+				buffer[startIndex + i] = '0';
+			}
+
+			if (data >= 0) {
+				buffer[startIndex + paddingLength] = '+';
+			}
+			else {
+				buffer[startIndex + paddingLength] = '-';
+				data = -data;
+			}
+
+			// Write the integer part
+			integer = (long)absf(data);
+			for (fu16 i = 0; i < numDigits; i++) {
+				buffer[startIndex + paddingLength + 1 + (numDigits-1 - i)] = '0' + (integer % 10);
+				integer /= 10;
+			}
+			
+			// Write the dot
+			buffer[startIndex + paddingLength + 1 + numDigits] = '.';
+
+			float fractionalPart = data - (long)data;
+			for (fu16 i = 0; i < numDecimals; i++) {
+				fu8 digit = fractionalPart * 10;
+				buffer[startIndex + paddingLength + 1 + numDigits + 1 + i] = '0' + digit;
+				
+				fractionalPart = fractionalPart * 10;
+				fractionalPart = fractionalPart - (long)fractionalPart;
+			}
+			return 0;
+		}
+
+		// Returns a reference to the specified char in this string. If index is negative the access is in reverse, starting at the last element (-1)
+		// If not LIBSTR_UNSAFE is set indices out of bounds will be clamped, otherwise accessing out of bounds is undefined behaviour.
+		char& operator[](int index) {
+			if (index < 0) {
+#ifndef LIBSTR_UNSAFE
+				if (index < -bufferSize) {
+					return buffer[0];
+				}
+#endif // !LIBSTR_UNSAFE
+				index = bufferSize + index;
+			}
+#ifndef LIBSTR_UNSAFE
+			if (index >= bufferSize) {
+				return buffer[bufferSize - 1];
+			}
+#endif // !LIBSTR_UNSAFE
+			return buffer[index];
+		}
+	
+		// Returns a copy of the specified char in this string. If index is negative the access is in reverse, starting at the last element (-1)
+		// If not LIBSTR_UNSAFE is set indices out of bounds will be clamped, otherwise accessing out of bounds is undefined behaviour.
+		char operator[](int index) const {
+			if (index < 0) {
+#ifndef LIBSTR_UNSAFE
+				if (index < -bufferSize) {
+					return buffer[0];
+				}
+#endif // !LIBSTR_UNSAFE
+				index = bufferSize + index;
+			}
+#ifndef LIBSTR_UNSAFE
+			if (index >= bufferSize) {
+				return buffer[bufferSize - 1];
+			}
+#endif // !LIBSTR_UNSAFE
+			return buffer[index];
+		}
+
+	};
+
+	// Concatenates two strings with the addition symbol.
+	// Returns the concatenated string
+	template<fu16 S1, fu16 S2>
+	Str<S1 + S2> operator+(const Str<S1> left, const Str<S2> right) {
+		Str<S1 + S2> str;
+		str.set(0, left);
+		str.set(S1, right);
+		return str;
+	}
 }
-
-static inline long absl(long l) {
-	// Works for two's complement integers
-	// https://stackoverflow.com/a/2074403
-	long temp = l >> (sizeof(l) * 8 - 1);  // make a mask of the sign bit
-	l ^= temp;							   // toggle the bits if value is negative
-	l += temp & 1;						   // add one if value was negative
-	return l;
-}
-
-static inline int powl(int base, unsigned int exponent) {
-	int total = 1;
-	for (unsigned int i = 0; i < exponent; i++) {
-		total *= base;
-	}
-	return total;
-}
-
-template<fu16 buffSize>
-class Str {
-public:
-	char buffer[buffSize + 1];
-	inline fu16 length() {
-		return buffSize;
-	}
-public:
-	// Construct string. The characters in the string can be anything.
-	Str() {
-		buffer[buffSize] = '\0';
-	}
-
-	// Copy contructor
-	Str(const Str<buffSize>& other) {
-		memcpy(buffer, other.buffer, buffSize + 1);
-	}
-
-	// Creates a string filled with fillCharacter
-	Str(char fillCharacter) {
-		fill(fillCharacter);
-	}
-
-	// Repeats the character in the span [start, end>
-	// returns:
-	//   0 if success
-	//  -1 if end > the size of this Str
-	int set(fu16 start, fu16 end, char character) {
-#ifndef LIBSTR_UNSAFE
-		if (end > buffSize) {
-			return -1;
-		}
-#endif
-		for (fu16 i = start; i < end; i++) {
-			buffer[i] = character;
-		}
-		return 0;
-	}
-
-	// Fills the Str with the spesified character, and appends a null terminator
-	void fill(char character) {
-		for (fu16 i = 0; i < buffSize; i++) {
-			buffer[i] = character;
-		}
-		buffer[buffSize] = '\0';
-	}
-
-	// Copies characters from the data string to this Str.
-	// Returns:
-	//   0 if successful
-	//  -1 if out of bounds
-	// startIndex: the index of this Str to start writing.
-	// numChars: the amount of characters to copy from data
-	// data: the string to copy from
-	int set(fu16 startIndex, fu16 numChars, const char* data) {
-#ifndef LIBSTR_UNSAFE
-		if (startIndex + numChars > buffSize) {
-			return -1;	// String out of bounds
-		}
-#endif
-		memcpy(buffer + startIndex, data, numChars);
-		return 0;
-	}
-
-	// Sets one character at the specified index
-	// Returns:
-	//   0 if successful
-	//  -1 if out of bounds
-	int set(fu16 index, char data) {
-#ifndef LIBSTR_UNSAFE
-		if (index > buffSize) {
-			return -1;	// Index out of bounds
-		}
-#endif
-		buffer[index] = data;
-		return 0;
-	}
-
-	// Writes a unsigned long into this str, and pads the left side with 0s
-	// Examples:
-	//     padSet(0, 4, 123) -> "0123"
-	//     padSet(0, 3, 123) -> "123"
-	// Returns:
-	//  0 if success
-	// -1 if the number does not fit, i.e. start + numChars is out of bounds
-	// -2 data has more digits than numChars
-	// Params:
-	// numChars:
-	//   the amount of characters used.
-	// start:
-	//   the index in this Str to start writing the unsigned long
-	// data:
-	//   the unsigned long to be written
-	int padSet(fu16 start, fu16 numChars, unsigned long data) {
-		// Calculate number of digits
-		fu8 numDigits = 0;
-		unsigned long num = data;
-		do {
-			num = num / 10;
-			numDigits++;
-		} while (num != 0);
-
-#ifndef LIBSTR_UNSAFE
-		if (numDigits > numChars) {
-			return -2;	// Number of digits is too large
-		}
-		if (start + numChars > buffSize) {
-			return -1;	// Out of bounds
-		}
-#endif
-		// Write the padding
-		for (fu8 i = 0; i < numChars - numDigits; i++) {
-			buffer[start + i] = '0';
-		}
-		// Write the long from right to left
-		for (fu8 i = 0; i < numDigits; i++) {
-			// Finding the last character by adding the last digit to the ASCII code of '0'(=48)
-			char c = '0' + (data % 10);
-			buffer[start + (numChars - 1 - i)] = c;
-			// Shift the long to the right, so the second last digit is the last
-			data /= 10;
-		}
-
-		return 0;
-	}
-
-	// Writes a long into this str, and pads the left side with 0s
-	// Examples:
-	//     padSet(0, 6, 234) -> "00+234"
-	//     padSet(0, 4, -234) -> "-234"
-	// Returns:
-	//  0 if success
-	// -1 if the number does not fit, i.e. start + numChars is out of bounds
-	// -2 if data has more digits than numChars
-	// Params:
-	// numChars:
-	//   the amount of characters used.
-	// start:
-	//   the index in this Str to start writing the unsigned long
-	// data:
-	//   the unsigned long to be written
-	int padSet(fu16 start, fu16 numChars, long data) {
-		// Calculate number of digits
-		fu8 numDigits = 0;
-		unsigned long absData = absl(data);
-		unsigned long tempNum = absData;
-		do {
-			tempNum = tempNum / 10;
-			numDigits++;
-		} while (tempNum != 0);
-
-#ifndef LIBSTR_UNSAFE
-		if (numDigits + 1 > numChars) {	 // Adding 1 for the +/-
-			return -2;					 // Number of digits is too large
-		}
-		if (start + numChars > buffSize) {
-			return -1;	// Out of bounds
-		}
-#endif
-		// Write the padding
-		for (fu8 i = 0; i < numChars - numDigits; i++) {
-			buffer[start + i] = '0';
-		}
-		if (data > 0) {
-			buffer[start + numChars - (numDigits + 1)] = '+';
-		}
-		else {
-			buffer[start + numChars - (numDigits + 1)] = '-';
-		}
-		// Write the long from right to left
-		for (fu8 i = 0; i < numDigits; i++) {
-			// Finding the last character by adding the last digit to the ASCII code of '0'(=48)
-			char c = '0' + (absData % 10);
-			buffer[start + (numChars - 1 - i)] = c;
-			// Shift the long to the right, so the second last digit is the last
-			absData /= 10;
-		}
-		return 0;
-	}
-
-	// Writes a longfloat with padding. A longfloat is a format for storing floats.
-	// Examples:
-	//     12.3 -> +1231 the 1 one at the end (called the decimal character) indicates how many digits are left of the decimal point
-	//     -12.3 -> -1231
-	// The padding is a series of zeros on the left of the float, whose purpose is to fill the amount of characters indicated by numChars
-	// Example:
-	// padSetLF(0, 8, 2, 123.456) -> 0+123452 (the 2 at the end is the decimals character)
-	// params:
-	//  - start, where to start writing the longfloat
-	//  - numChars, the total number of characters to write
-	//  - numDecimals, the amount of decimals to include in the longfloat
-	//  - data, the float to write as a longfloat
-	// returns: the success code
-	//   0, if success
-	//  -1, if start + numChars > the size of the Str
-	//  -2, if the amount of digits in the longfloat + 2 (adding 1 for decimal character and 1 for prefix(+/-)) > numChars
-	//  -3, if numDecimals + 2 (adding 1 for decimal character and 1 for prefix(+/-)) > numChars
-	int padSetLF(fu16 start, fu8 numChars, fu8 numDecimals, float data) {
-#ifndef LIBSTR_UNSAFE
-		if (numDecimals + 2 > numChars) {  // adding 1 for decimal character and 1 for prefix(+/-)
-			return -3;					   // numDecimals is too large
-		}
-#endif
-		unsigned long num = (long)(absf(data) * powl(10, numDecimals));
-
-		fu8 numDigits = 0;	 // Total number of digits in num
-		unsigned long tempNum = num;
-		do {
-			tempNum = tempNum / 10;
-			numDigits++;
-		} while (tempNum != 0);
-
-#ifndef LIBSTR_UNSAFE
-		if (numDigits + 2 > numChars) {	 // adding 1 for decimal character and 1 for prefix(+/-)
-			return -2;
-		}
-		if (start + numChars > buffSize) {
-			return -1;
-		}
-#endif
-		// Write the padding
-		for (fu8 i = 0; i < numChars - numDigits - 2; i++) {  // subtracting 1 for decimal character and 1 for prefix(+/-)
-			buffer[start + i] = '0';
-		}
-
-		// Write the longfloat
-		fu16 index = start + numChars - numDigits - 2;
-		if (data < 0) {
-			buffer[index] = '-';
-		}
-		else {
-			buffer[index] = '+';
-		}
-
-		for (fu16 i = 0; i < numDigits; i++) {
-			// Finding the last character by adding the last digit to the ASCII code of '0'(=48)
-			char c = '0' + (num % 10);
-			buffer[start + (numChars - i - 2)] = c;
-			// Shift the long to the right, so the second last digit is the last
-			num /= 10;
-		}
-
-		// Write the amount of decimals
-		buffer[start + numChars - 1] = '0' + numDecimals;
-		return 0;
-	}
-};
