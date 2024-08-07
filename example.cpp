@@ -72,6 +72,28 @@ static void demonstrate() {
 		println(" | [none]");
 	}
 
+	println("\n ---- Init const char* ---- ");
+	{
+		Str<4> str("text", '!');
+		print(str);
+		println(" | [none]");
+	}
+	{
+		Str<0> str("text", '!');
+		print(str);
+		println(" | [none]");
+	}
+	{
+		Str<4> str("\0", 'a');
+		print(str);
+		println(" | [none]");
+	}
+	{
+		Str<8> str("text", 'b');
+		print(str);
+		println(" | [none]");
+	}
+
 	println("\n ---- Set char ---- ");
 	{
 		char c = 'o';
@@ -323,6 +345,94 @@ static void demonstrate() {
 		print(str);
 		print(" | ");
 		println(success);
+	}
+
+	println("\n ---- operator [] (no const) ---- ");
+	{
+		Str<4> str('!');
+		str[1] = 'o';
+		print(str);
+		print(" | ");
+		println("[none]");
+	}
+	{
+		Str<4> str('!');
+		str[-2] = 'o';
+		print(str);
+		print(" | ");
+		println("[none]");
+	}
+	{
+		Str<4> str('!');
+		str[-15] = 'o';
+		print(str);
+		print(" | ");
+		println("[none]");
+	}
+	{
+		Str<4> str('!');
+		str[6] = 'o';
+		print(str);
+		print(" | ");
+		println("[none]");
+	}
+
+	println("\n ---- operator [] (const) ---- ");
+	{
+		Str<4> src;
+		src.set(0, '0');
+		src.set(1, '1');
+		src.set(2, '2');
+		src.set(3, '3');
+		const Str<4> str(src);
+		char c = str[1];
+		print(str);
+		print(" | ");
+		print("[none]");
+		print(" | ");
+		println(c);
+	}
+	{
+		Str<4> src;
+		src.set(0, '0');
+		src.set(1, '1');
+		src.set(2, '2');
+		src.set(3, '3');
+		const Str<4> str(src);
+		char c = str[-2];
+		print(str);
+		print(" | ");
+		print("[none]");
+		print(" | ");
+		println(c);
+	}
+	{
+		Str<4> src;
+		src.set(0, '0');
+		src.set(1, '1');
+		src.set(2, '2');
+		src.set(3, '3');
+		const Str<4> str(src);
+		char c = str[-15];
+		print(str);
+		print(" | ");
+		print("[none]");
+		print(" | ");
+		println(c);
+	}
+	{
+		Str<4> src;
+		src.set(0, '0');
+		src.set(1, '1');
+		src.set(2, '2');
+		src.set(3, '3');
+		const Str<4> str(src);
+		char c = str[6];
+		print(str);
+		print(" | ");
+		print("[none]");
+		print(" | ");
+		println(c);
 	}
 }
 

@@ -2,7 +2,7 @@
 For unsafe mode (strongly discouraged), define LIBSTR_UNSAFE before including this file.
 Using unsafe mode is only occasionally faster, and disables checks that can stop the program from crashing.
 
-Example: To define unsafe mode write (at the top of a file):
+Example: To use unsafe mode write (at the top of a file):
 ... other includes ...
 #define LIBSTR_UNSAFE
 #include "libstr.hpp"
@@ -19,42 +19,16 @@ namespace libstr {
 	typedef uint_fast8_t fu8;
 	typedef uint32_t u32;
 
-
-	static inline float absf(float f) {
-		// optimizer will optimize away the `if` statement
-		if (sizeof(float) == sizeof(u32)) {
-			union {
-				float f;
-				u32 i;
-			} u{};
-			u.f = f;
-			u.i &= 0x7fffffff;
-			return u.f;
-		}
-		return (f >= 0) ? f : -f;
-	}
-
-	static inline long absl(long l) {
-		// Works for two's complement integers
-		// https://stackoverflow.com/a/2074403
-		long temp = l >> (sizeof(l) * 8 - 1);  // make a mask of the sign bit
-		l ^= temp;							   // toggle the bits if value is negative
-		l += temp & 1;						   // add one if value was negative
-		return l;
-	}
-
-	static inline int powl(int base, unsigned int exponent) {
-		int total = 1;
-		for (unsigned int i = 0; i < exponent; i++) {
-			total *= base;
-		}
-		return total;
+	template<typename T>
+	static inline T abs(T v) {
+		return (v >= 0) ? v : -v;
 	}
 
 	template<fu16 bufferSize>
 	class Str {
 	public:
 		char buffer[bufferSize];
+
 		inline fu16 length() {
 			return bufferSize;
 		}
@@ -62,11 +36,11 @@ namespace libstr {
 		Str<bufferSize + 1> nullTerminated() {
 			Str<bufferSize + 1> other;
 			other.set(0, *this);
-			other.set(bufferSize + 1 - 1, '\0');
+			other.set(other.length() - 1, '\0');
 			return other;
 		}
 	public:
-		// Construct empty string. The string's buffer is uninitialized, used Str(char) instead to initialize the string
+		// Construct empty string. The string's buffer is uninitialized, use another constructur to initialize the Str's buffer.
 		Str() {}
 
 		// Copy contructor
@@ -79,7 +53,23 @@ namespace libstr {
 			fill(fillCharacter);
 		}
 
-		// Repeats the character in the span [start, end>
+		// Initializes this string with specified string. 
+		// If the length of the string provided is shorter than the length of this string, the remaining characters are filled using fillChar.
+		Str(const char* string, char fillChar) {
+			size_t countedLength = strlen(string);
+			fu16 len = bufferSize;
+			if (countedLength < len) {
+				len = countedLength;
+			}
+			memcpy(buffer, string, len);
+			for(fu16 charIdx = len; charIdx < bufferSize; charIdx++) {
+				buffer[charIdx] = fillChar;
+			}
+
+			
+		}
+
+		// Repeats the character in the span [start, end>.
 		// returns:
 		//   0 if success
 		//  -1 if end > the size of this Str
@@ -106,7 +96,7 @@ namespace libstr {
 			}
 		}
 
-		// Copies characters from the data string to this Str. The string should be null terminated if bounds checking is to be performed
+		// Copies characters from the data string to this Str. The string should be null terminated if bounds checking is to be performed.
 		// Returns:
 		//   0 if successful
 		//  -1 if out of bounds
@@ -145,7 +135,7 @@ namespace libstr {
 			return 0;
 		}
 
-		// Sets one character at the specified index
+		// Sets one character at the specified index.
 		// Returns:
 		//   0 if successful
 		//  -1 if out of bounds
@@ -159,7 +149,7 @@ namespace libstr {
 			return 0;
 		}
 
-		// Writes a unsigned long into this str, and pads the left side with 0s
+		// Writes a unsigned long into this str, and pads the left side with 0s.
 		// Examples:
 		//     padSet(0, 4, 123) -> "0123"
 		//     padSet(0, 3, 123) -> "123"
@@ -171,7 +161,7 @@ namespace libstr {
 		// numChars:
 		//   the amount of characters used.
 		// start:
-		//   the index in this Str to start writing the unsigned long
+		//   the index in this Str to start writing the unsigned long.
 		// data:
 		//   the unsigned long to be written
 		int padSet(fu16 start, fu16 numChars, unsigned long data) {
@@ -207,7 +197,7 @@ namespace libstr {
 			return 0;
 		}
 
-		// Writes a long into this str, and pads the left side with 0s
+		// Writes a long into this str, and pads the left side with 0s.
 		// Examples:
 		//     padSet(0, 6, 234) -> "00+234"
 		//     padSet(0, 4, -234) -> "-234"
@@ -225,7 +215,7 @@ namespace libstr {
 		int padSet(fu16 start, fu16 numChars, long data) {
 			// Calculate number of digits
 			fu8 numDigits = 0;
-			unsigned long absData = absl(data);
+			unsigned long absData = abs(data);
 			unsigned long tempNum = absData;
 			do {
 				tempNum = tempNum / 10;
@@ -277,7 +267,7 @@ namespace libstr {
 			}
 #endif // !LIBSTR_UNSAFE
 			// Count digits in the integer part
-			long integer = (long)absf(data);
+			long integer = (long)abs(data);
 			unsigned int numDigits = 0;
 			do {
 				integer = integer / 10;
@@ -305,7 +295,7 @@ namespace libstr {
 			}
 
 			// Write the integer part
-			integer = (long)absf(data);
+			integer = (long)abs(data);
 			for (fu16 i = 0; i < numDigits; i++) {
 				buffer[startIndex + paddingLength + 1 + (numDigits-1 - i)] = '0' + (integer % 10);
 				integer /= 10;
@@ -325,7 +315,7 @@ namespace libstr {
 			return 0;
 		}
 
-		// Returns a reference to the specified char in this string. If index is negative the access is in reverse, starting at the last element (-1)
+		// Returns a reference to the specified char in this string. If index is negative the access is in reverse, starting at the last element (-1).
 		// If not LIBSTR_UNSAFE is set indices out of bounds will be clamped, otherwise accessing out of bounds is undefined behaviour.
 		char& operator[](int index) {
 			if (index < 0) {
@@ -344,7 +334,7 @@ namespace libstr {
 			return buffer[index];
 		}
 	
-		// Returns a copy of the specified char in this string. If index is negative the access is in reverse, starting at the last element (-1)
+		// Returns a copy of the specified char in this string. If index is negative the access is in reverse, starting at the last element (-1).
 		// If not LIBSTR_UNSAFE is set indices out of bounds will be clamped, otherwise accessing out of bounds is undefined behaviour.
 		char operator[](int index) const {
 			if (index < 0) {
@@ -366,7 +356,7 @@ namespace libstr {
 	};
 
 	// Concatenates two strings with the addition symbol.
-	// Returns the concatenated string
+	// Returns the concatenated string.
 	template<fu16 S1, fu16 S2>
 	Str<S1 + S2> operator+(const Str<S1> left, const Str<S2> right) {
 		Str<S1 + S2> str;
