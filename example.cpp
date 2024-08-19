@@ -434,6 +434,36 @@ static void demonstrate() {
 		print(" | ");
 		println(c);
 	}
+	println("\n ---- operator == ---- ");
+	{
+		Str<4> str1('!');
+		Str<3> str2('!');
+		print(str1 == str2);
+		print(" | ");
+		println("[none]");
+	}
+	{
+		Str<4> str1('!');
+		Str<4> str2('!');
+		str2[3] = 'a';
+		print(str1 == str2);
+		print(" | ");
+		println("[none]");
+	}
+	{
+		Str<0> str1('!');
+		Str<0> str2('!');
+		print(str1 == str2);
+		print(" | ");
+		println("[none]");
+	}
+	{
+		Str<4> str1('b');
+		Str<4> str2('b');
+		print(str1 == str2);
+		print(" | ");
+		println("[none]");
+	}
 }
 
 int main() {

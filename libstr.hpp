@@ -355,6 +355,19 @@ namespace libstr {
 
 	};
 
+	template<fu16 S1, fu16 S2>
+	bool operator==(const Str<S1>& str1, const Str<S2>& str2) {
+		if(S1 != S2) {
+			return false;
+		}
+		for(fu16 character = 0; character < S1; character++) {
+			if(str1[character] != str2[character]) {
+				return false;
+			}
+		}
+		return true;
+	} 
+
 	// Concatenates two strings with the addition symbol.
 	// Returns the concatenated string.
 	template<fu16 S1, fu16 S2>
