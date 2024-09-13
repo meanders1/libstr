@@ -55,6 +55,22 @@ static void demonstrate() {
 		println(" | [none]");
 	}
 
+	println("\n ---- Assignment operator ---- ");
+	{
+		Str<8> other('!');
+		Str<8> str('a');
+		str = other;
+		print(str);
+		println(" | [none]");
+	}
+	{
+		Str<0> other('!');
+		Str<0> str('a');
+		str = other;
+		print(str);
+		println(" | [none]");
+	}
+
 	println("\n ---- Init character ---- ");
 	{
 		Str<4> str('!');

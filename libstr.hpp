@@ -40,12 +40,18 @@ namespace libstr {
 			return other;
 		}
 	public:
-		// Construct empty string. The string's buffer is uninitialized, use another constructur to initialize the Str's buffer.
+		// Construct an empty string. The string's buffer is uninitialized, use another constructur to initialize the Str's buffer.
 		Str() {}
 
 		// Copy contructor
 		Str(const Str<bufferSize>& other) {
 			memcpy(buffer, other.buffer, static_cast<size_t>(bufferSize));
+		}
+
+		// Assignment operator
+		Str<bufferSize>& operator=(const Str<bufferSize>& other) {
+			memcpy(buffer, other.buffer, static_cast<size_t>(bufferSize));
+			return *this;
 		}
 
 		// Creates a string filled with fillCharacter
@@ -377,4 +383,20 @@ namespace libstr {
 		str.set(S1, right);
 		return str;
 	}
+
+	class HStr {
+	private:
+		char* buffer;
+		fu16 bufferSize;
+	public:
+		HStr(const char* str) {
+			bufferSize = strlen(str);
+			memcpy(buffer, str, bufferSize);
+		}
+		template <fu16 otherSize>
+		HStr(const Str<otherSize>& str) {
+			bufferSize = otherSize;
+			memcpy(buffer, str.buffer, bufferSize);
+		}
+	};
 }
